@@ -1,17 +1,21 @@
 #!/bin/bash
 # cgp-cnvkit-pon/src/code.sh
 # Builds a CNVkit PoN reference from per-sample coverage files.
-# No FASTA — skips GC correction for PoC (add --fasta when normals available).
+# Optionally annotates intervals with GC content (pass fasta/fasta_fai/fasta_gzi)
+# for GC-bias correction in downstream fix steps.
 # Outputs reference.cnn + a summary stats TSV.
+# shellcheck disable=SC2154,SC2086  # SC2154: vars injected by DNAnexus; SC2086: FASTA_ARG intentionally unquoted
 set -eo pipefail
 
 main() {
+    # coverage_files, pon_name, fasta, fasta_fai, fasta_gzi are injected by
+    # DNAnexus at runtime from dxapp.json inputSpec; ShellCheck cannot see this.
     echo "=== CGP CNVkit PoN build ==="
 
     # ── Load CNVkit Docker image ──────────────────────────────────────────────
     # Image stored in DNAnexus; no external internet required.
     # Update CNVKIT_IMAGE_ID after running scripts/dnanexus/docker/cgp-cnvkit/build_and_upload.sh
-    CNVKIT_IMAGE_ID="project-Fkb6Gkj433GVVvj73J7x8KbV:file-J8j7Vyj45FG1BbK26JQgQY6q"   # cgp-cnvkit:1.0.0 — set after upload
+    CNVKIT_IMAGE_ID="project-Fkb6Gkj433GVVvj73J7x8KbV:file-J8j7Vyj45FG1BbK26JQgQY6q"   # cgp-cnvkit:1.0.0
     CNVKIT_IMAGE_TAG="cgp-cnvkit:1.0.0"
     echo "[setup] Loading CNVkit image..."
     dx download "${CNVKIT_IMAGE_ID}" -o cnvkit-image.tar.gz
@@ -25,7 +29,7 @@ main() {
 
     # coverage_files is an array — DNAnexus passes as bash array of file IDs
     # dx-download-all-inputs downloads to ~/in/coverage_files/N/filename
-    dx-download-all-inputs --except tumour_bam 2>/dev/null || true
+    dx-download-all-inputs 2>/dev/null || true
 
     # Collect from default dx-download-all-inputs path, or download manually
     if ls ~/in/coverage_files/*/*.cnn 2>/dev/null | head -1 | grep -q ".cnn"; then
@@ -51,7 +55,15 @@ main() {
     # pyfaidx (bundled with CNVkit) handles bgzf-compressed FASTA natively
     # when both the .fai and .gzi index files are present alongside.
     FASTA_ARG=""
+    # Guard: if any FASTA index is provided without the FASTA itself, fail early
+    if ([ -n "${fasta_fai:-}" ] || [ -n "${fasta_gzi:-}" ]) && [ -z "${fasta:-}" ]; then
+        echo "ERROR: fasta_fai/fasta_gzi supplied but fasta is missing — all three must be provided together" >&2
+        exit 1
+    fi
+
     if [ -n "${fasta:-}" ]; then
+        [ -n "${fasta_fai:-}" ] || { echo "ERROR: fasta supplied but fasta_fai is missing" >&2; exit 1; }
+        [ -n "${fasta_gzi:-}" ] || { echo "ERROR: fasta supplied but fasta_gzi is missing" >&2; exit 1; }
         echo "[reference] Downloading FASTA for GC correction..."
         dx download "${fasta}"     -o ref.fasta.gz
         dx download "${fasta_fai}" -o ref.fasta.gz.fai
