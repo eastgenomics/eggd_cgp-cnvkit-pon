@@ -67,7 +67,7 @@ main() {
         --output "${pon_name:-cgp_cnvkit_reference}.cnn" \
         ${FASTA_ARG}
 
-    REF_FILE="${pon_name:-cgp_cnvkit_reference}.cnn"
+    export REF_FILE="${pon_name:-cgp_cnvkit_reference}.cnn"
     N_INTERVALS=$(wc -l < "${REF_FILE}")
     echo "[reference] Reference intervals (incl. header): ${N_INTERVALS}"
     [ "${N_INTERVALS}" -gt 1000 ] || { echo "ERROR: reference too small"; exit 1; }
@@ -76,7 +76,7 @@ main() {
     python3 - << 'PYEOF'
 import csv, statistics, os
 
-ref_file = os.environ.get('pon_name', 'cgp_cnvkit_reference') + '.cnn'
+ref_file = os.environ["REF_FILE"]
 log2_vals = []
 depths = []
 
