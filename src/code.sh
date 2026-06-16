@@ -8,11 +8,16 @@ set -eo pipefail
 main() {
     echo "=== CGP CNVkit PoN build ==="
 
-    # ── Install cnvkit ────────────────────────────────────────────────────────
-    python3 -m venv /tmp/cnvkit-env
-    /tmp/cnvkit-env/bin/pip install cnvkit --quiet 2>&1 | tail -3
-    export PATH="/tmp/cnvkit-env/bin:$PATH" 
-    cnvkit.py version
+    # ── Load CNVkit Docker image ──────────────────────────────────────────────
+    # Image stored in DNAnexus; no external internet required.
+    # Update CNVKIT_IMAGE_ID after running scripts/dnanexus/docker/cgp-cnvkit/build_and_upload.sh
+    CNVKIT_IMAGE_ID="project-Fkb6Gkj433GVVvj73J7x8KbV:file-J8j7Vyj45FG1BbK26JQgQY6q"   # cgp-cnvkit:1.0.0 — set after upload
+    CNVKIT_IMAGE_TAG="cgp-cnvkit:1.0.0"
+    echo "[setup] Loading CNVkit image..."
+    dx download "${CNVKIT_IMAGE_ID}" -o cnvkit-image.tar.gz
+    docker load < cnvkit-image.tar.gz
+    run_cnvkit() { docker run --rm -v "$(pwd)":/work -w /work "${CNVKIT_IMAGE_TAG}" cnvkit.py "$@"; }
+    run_cnvkit version
 
     # ── Download all coverage files ───────────────────────────────────────────
     echo "[inputs] Downloading coverage files..."
@@ -40,12 +45,27 @@ main() {
     ls cnn_files/*.cnn | head -5
     echo "..."
 
-    # ── Build reference ───────────────────────────────────────────────────────
-    # No --fasta: skips GC/repeat annotation (PoC — avoids chr naming mismatch)
-    # The PoN median still captures and removes assay-level probe biases.
+    # ── Build reference ─────────────────────────────────────────────────────────────
+    # If a FASTA is provided, annotate intervals with GC content and
+    # RepeatMasker fraction for GC-bias correction in downstream fix steps.
+    # pyfaidx (bundled with CNVkit) handles bgzf-compressed FASTA natively
+    # when both the .fai and .gzi index files are present alongside.
+    FASTA_ARG=""
+    if [ -n "${fasta:-}" ]; then
+        echo "[reference] Downloading FASTA for GC correction..."
+        dx download "${fasta}"     -o ref.fasta.gz
+        dx download "${fasta_fai}" -o ref.fasta.gz.fai
+        dx download "${fasta_gzi}" -o ref.fasta.gz.gzi
+        FASTA_ARG="--fasta ref.fasta.gz"
+        echo "[reference] FASTA ready; GC correction enabled"
+    else
+        echo "[reference] No FASTA supplied; skipping GC/repeat annotation"
+    fi
+
     echo "[reference] Building PoN from ${N_FILES} samples..."
-    cnvkit.py reference cnn_files/*.cnn \
-        --output "${pon_name:-cgp_cnvkit_reference}.cnn"
+    run_cnvkit reference cnn_files/*.cnn \
+        --output "${pon_name:-cgp_cnvkit_reference}.cnn" \
+        ${FASTA_ARG}
 
     REF_FILE="${pon_name:-cgp_cnvkit_reference}.cnn"
     N_INTERVALS=$(wc -l < "${REF_FILE}")
