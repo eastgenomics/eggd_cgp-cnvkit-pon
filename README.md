@@ -45,6 +45,9 @@ median depth, sample count) for verification.
 |---|---|---|---|
 | `coverage_files` | array:file | ✅ | `.targetcoverage.cnn` files from `eggd_cgp-cnvkit-coverage`, one per sample |
 | `pon_name` | string | ➖ | Output filename stem (default: `cgp_cnvkit_reference`) |
+| `fasta` | file | ➖ | bgzf-compressed reference FASTA (`.fasta.gz`) for GC/repeat annotation. Requires `fasta_fai` and `fasta_gzi`. |
+| `fasta_fai` | file | ➖ | samtools `.fai` index for the FASTA. Required when `fasta` is supplied. |
+| `fasta_gzi` | file | ➖ | bgzf block index (`.gzi`) for the FASTA. Required when `fasta` is supplied. |
 
 All coverage files must have been generated with the **same BED file** and
 `target_avg_size` setting.
@@ -84,21 +87,19 @@ Only needs to run once per cohort/PoN version.
 
 ## Dependencies
 
-CNVkit is installed from PyPI at job start:
-```
-python3 -m venv /tmp/cnvkit-env
-/tmp/cnvkit-env/bin/pip install cnvkit
-```
+CNVkit runs inside a pre-built Docker image loaded from DNAnexus at job start
+(`cgp-cnvkit:1.0.0`, image ID `project-Fkb6Gkj433GVVvj73J7x8KbV:file-J8j7Vyj45FG1BbK26JQgQY6q`).
+No internet access or PyPI install is required.
 CNVkit version in use: **0.9.13**.
 No R is required for this step.
 
 ## Notes
 
-- **GC correction:** Not applied by default (no `--fasta` argument). To enable GC
-  correction, the reference FASTA chromosome naming must match the BED/BAM chromosome
-  naming. For chr-prefix BAMs, a chr-prefix FASTA is required. Add `--fasta` to the
-  `cnvkit.py reference` call in `src/code.sh` when a compatible FASTA is available.
-  GC correction reduces per-interval noise by ~10–15%.
+- **GC correction:** Not applied by default. To enable, supply a bgzf-compressed
+  reference FASTA via the `fasta`, `fasta_fai`, and `fasta_gzi` inputs. All three
+  must be provided together. The FASTA chromosome naming must match the BED/BAM
+  naming (chr-prefix for chr-prefix BAMs). GC correction reduces per-interval noise
+  by ~10–15%.
 - **Tumour PoN:** When built from tumour samples, recurrent CN events (amplifications
   or deletions present in many samples) are absorbed into the PoN median and attenuated
   in individual sample analyses. Replace with a normal-sample PoN when possible.
