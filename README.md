@@ -99,7 +99,11 @@ No R is required for this step.
   reference FASTA via the `fasta`, `fasta_fai`, and `fasta_gzi` inputs. All three
   must be provided together. The FASTA chromosome naming must match the BED/BAM
   naming (chr-prefix for chr-prefix BAMs). GC correction reduces per-interval noise
-  by ~10–15%.
+  by ~10–15%. `code.sh` verifies this actually ran: when `fasta` is supplied, it
+  checks the output `reference.cnn` for a `gc` column and fails the job if it's
+  absent, so a broken `--fasta` pass-through errors loudly instead of silently
+  skipping GC correction (`gc_correction_applied` is also recorded in
+  `reference_stats.tsv`).
 - **Tumour PoN:** When built from tumour samples, recurrent CN events (amplifications
   or deletions present in many samples) are absorbed into the PoN median and attenuated
   in individual sample analyses. Replace with a normal-sample PoN when possible.
