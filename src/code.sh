@@ -97,7 +97,7 @@ main() {
     # ${FASTA_ARG} to run as its own command instead of being appended to
     # the cnvkit.py reference call). Catches a silent no-op, not just a crash.
     if [ "${FASTA_PROVIDED}" -eq 1 ]; then
-        if ! head -1 "${REF_FILE}" | grep -qw 'gc'; then
+        if ! head -n 1 "${REF_FILE}" | grep -qw 'gc'; then
             echo "ERROR: fasta was supplied but 'gc' column is missing from ${REF_FILE} — GC correction did not run (--fasta was not passed to cnvkit.py reference)" >&2
             exit 1
         fi
@@ -120,12 +120,12 @@ with open(ref_file) as f:
         try:
             log2_vals.append(float(row['log2']))
             depths.append(float(row.get('depth', 0)))
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             pass
         if 'gc' in row:
             try:
                 gc_vals.append(float(row['gc']))
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
 
 with open('reference_stats.tsv', 'w') as out:
