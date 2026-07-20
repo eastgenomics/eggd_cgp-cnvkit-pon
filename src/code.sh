@@ -69,10 +69,13 @@ main() {
         dx download "${fasta_fai}" -o ref.fasta.gz.fai
         dx download "${fasta_gzi}" -o ref.fasta.gz.gzi
         FASTA_ARG="--fasta ref.fasta.gz"
+        FASTA_PROVIDED=1
         echo "[reference] FASTA ready; GC correction enabled"
     else
+        FASTA_PROVIDED=0
         echo "[reference] No FASTA supplied; skipping GC/repeat annotation"
     fi
+    export FASTA_PROVIDED
 
     echo "[reference] Building PoN from ${N_FILES} samples..."
     run_cnvkit reference cnn_files/*.cnn \
@@ -84,13 +87,32 @@ main() {
     echo "[reference] Reference intervals (incl. header): ${N_INTERVALS}"
     [ "${N_INTERVALS}" -gt 1000 ] || { echo "ERROR: reference too small"; exit 1; }
 
+    # ── GC-correction regression check ──────────────────────────────────────
+    # cnvkit.py reference only adds a 'gc' column when --fasta is actually
+    # passed through to it (cnvlib/reference.py: gc/rmask columns are only
+    # populated when fa_fname is truthy). If fasta was supplied as an input
+    # but the 'gc' column is absent from the output, FASTA_ARG never reached
+    # cnvkit.py reference — this is exactly the regression fixed in a5b691c
+    # (a `# shellcheck disable` comment inside a line continuation caused
+    # ${FASTA_ARG} to run as its own command instead of being appended to
+    # the cnvkit.py reference call). Catches a silent no-op, not just a crash.
+    if [ "${FASTA_PROVIDED}" -eq 1 ]; then
+        if ! head -n 1 "${REF_FILE}" | grep -qw 'gc'; then
+            echo "ERROR: fasta was supplied but 'gc' column is missing from ${REF_FILE} — GC correction did not run (--fasta was not passed to cnvkit.py reference)" >&2
+            exit 1
+        fi
+        echo "[reference] GC-correction check passed: 'gc' column present in ${REF_FILE}"
+    fi
+
     # ── Summary stats ─────────────────────────────────────────────────────────
     python3 - << 'PYEOF'
 import csv, statistics, os
 
 ref_file = os.environ["REF_FILE"]
+fasta_provided = os.environ.get("FASTA_PROVIDED") == "1"
 log2_vals = []
 depths = []
+gc_vals = []
 
 with open(ref_file) as f:
     reader = csv.DictReader(f, delimiter='\t')
@@ -98,8 +120,13 @@ with open(ref_file) as f:
         try:
             log2_vals.append(float(row['log2']))
             depths.append(float(row.get('depth', 0)))
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             pass
+        if 'gc' in row:
+            try:
+                gc_vals.append(float(row['gc']))
+            except (ValueError, TypeError):
+                pass
 
 with open('reference_stats.tsv', 'w') as out:
     out.write('metric\tvalue\n')
@@ -109,6 +136,9 @@ with open('reference_stats.tsv', 'w') as out:
     out.write(f'log2_median\t{statistics.median(log2_vals):.4f}\n')
     out.write(f'depth_median\t{statistics.median(depths):.1f}\n')
     out.write(f'n_samples\t{len([f for f in os.listdir("cnn_files") if f.endswith(".cnn")])}\n')
+    out.write(f'gc_correction_applied\t{fasta_provided}\n')
+    if gc_vals:
+        out.write(f'gc_mean\t{statistics.mean(gc_vals):.4f}\n')
 
 print("Reference stats:")
 with open('reference_stats.tsv') as f:
