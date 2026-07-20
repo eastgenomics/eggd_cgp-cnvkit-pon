@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.1.0] - 2026-07-20
 
 ### Added
 - GC-correction regression check: when `fasta` is supplied, code.sh now verifies the
@@ -9,6 +9,10 @@
   `gc_correction_applied` / `gc_mean` row in `reference_stats.tsv`. Added to catch
   a repeat of the FASTA_ARG runtime bug fixed in a5b691c (GC correction had
   silently no-op'd rather than erroring).
+
+### Fixed
+- `head -1` replaced with POSIX-compliant `head -n 1` in GC-column check
+- CSV float parsing now catches `TypeError` (malformed/truncated rows where a column is `None`) alongside `ValueError`, in both the log2/depth and gc parsing blocks
 
 ## [2.0.0] - 2026-06-16
 
