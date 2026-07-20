@@ -3,9 +3,9 @@
   "title": "eggd_cgp-cnvkit-pon",
   "summary": "Builds a CNVkit panel-of-normals (PoN) reference from per-sample coverage files produced by eggd_cgp-cnvkit-coverage. Output reference.cnn is the input to eggd_cgp-cnvkit-batch.",
   "dxapi": "1.0.0",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "properties": {
-    "githubRelease": "2.0.0"
+    "githubRelease": "2.1.0"
   },
   "inputSpec": [
     {
