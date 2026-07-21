@@ -90,7 +90,7 @@ Only needs to run once per cohort/PoN version.
 CNVkit runs inside a pre-built Docker image loaded from DNAnexus at job start
 (`cgp-cnvkit:1.0.0`, image ID `project-Fkb6Gkj433GVVvj73J7x8KbV:file-J8j7Vyj45FG1BbK26JQgQY6q`).
 No internet access or PyPI install is required.
-CNVkit version in use: **0.9.13**.
+CNVkit version in use: unreleased dev build, git commit **fc65941d** (post-0.9.13 master, pre-dates the v0.9.14 tag).
 No R is required for this step.
 
 ## Notes
