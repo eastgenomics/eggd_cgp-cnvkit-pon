@@ -5,7 +5,7 @@
 # for GC-bias correction in downstream fix steps.
 # Outputs reference.cnn + a summary stats TSV.
 # shellcheck disable=SC2154,SC2086  # SC2154: vars injected by DNAnexus; SC2086: FASTA_ARG intentionally unquoted
-set -eo pipefail
+set -exo pipefail
 
 main() {
     # coverage_files, pon_name, fasta, fasta_fai, fasta_gzi are injected by
@@ -46,7 +46,7 @@ main() {
     echo "[inputs] Coverage files found: ${N_FILES}"
     [ "${N_FILES}" -ge 10 ] || { echo "ERROR: too few coverage files (${N_FILES}); expect ≥10"; exit 1; }
 
-    ls cnn_files/*.cnn | head -5
+    ls cnn_files/*.cnn
     echo "..."
 
     # ── Build reference ─────────────────────────────────────────────────────────────
