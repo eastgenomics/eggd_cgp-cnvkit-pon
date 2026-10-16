@@ -77,10 +77,25 @@ main() {
     fi
     export FASTA_PROVIDED
 
+    # PAR-aware chrX handling (--diploid-parx-genome). Applies to both the
+    # reference build and the member sex check below, so PoN chrX/chrY
+    # handling and the reported sexes use the same convention.
+    # Array, not a plain string: diploid_parx_genome is a free-form user input,
+    # so it must survive as a single argument even if it contained whitespace
+    # or glob metacharacters (unlike FASTA_ARG above, whose value is always the
+    # fixed literal "ref.fasta.gz").
+    PARX_ARGS=()
+    if [ -n "${diploid_parx_genome:-}" ]; then
+        PARX_ARGS=(--diploid-parx-genome "${diploid_parx_genome}")
+        echo "[reference] PAR-aware chrX handling enabled: --diploid-parx-genome ${diploid_parx_genome}"
+    else
+        echo "[reference] No diploid_parx_genome supplied; chrX PAR not treated as autosomal"
+    fi
+
     echo "[reference] Building PoN from ${N_FILES} samples..."
     run_cnvkit reference cnn_files/*.cnn \
         --output "${pon_name:-cgp_cnvkit_reference}.cnn" \
-        ${FASTA_ARG}
+        ${FASTA_ARG} "${PARX_ARGS[@]}"
 
     export REF_FILE="${pon_name:-cgp_cnvkit_reference}.cnn"
     N_INTERVALS=$(wc -l < "${REF_FILE}")
@@ -103,6 +118,69 @@ main() {
         fi
         echo "[reference] GC-correction check passed: 'gc' column present in ${REF_FILE}"
     fi
+
+    # ── GC-column clipping ──────────────────────────────────────────────────
+    # cnvkit.py fix (mask_bad_bins) drops any bin whose reference gc is outside
+    # [0.3, 0.7] by default (GC_MIN_FRACTION/GC_MAX_FRACTION), which on this
+    # panel removes ~7% of bins and can take short intragenic events below the
+    # minimum usable probe count. Clipping the gc column to [gc_clip_min,
+    # gc_clip_max] (defaults 0.3/0.7) keeps those bins -- they are still
+    # GC-corrected, just at the bound -- without changing log2/depth/spread or
+    # any other mask rule (low coverage, high spread, zero depth). Values that
+    # already sit inside the bounds are untouched. Only meaningful when a gc
+    # column exists, i.e. when fasta was supplied.
+    GC_CLIP_MIN="${gc_clip_min:-0.3}"
+    GC_CLIP_MAX="${gc_clip_max:-0.7}"
+    if [ "${FASTA_PROVIDED}" -eq 1 ]; then
+        python3 -c "import sys; sys.exit(0 if float('${GC_CLIP_MIN}') < float('${GC_CLIP_MAX}') else 1)" \
+            || { echo "ERROR: gc_clip_min (${GC_CLIP_MIN}) must be less than gc_clip_max (${GC_CLIP_MAX})" >&2; exit 1; }
+        echo "[reference] Clipping gc column to [${GC_CLIP_MIN}, ${GC_CLIP_MAX}]..."
+        export GC_CLIP_MIN GC_CLIP_MAX REF_FILE
+        python3 - << 'PYEOF'
+import os
+p = os.environ["REF_FILE"]
+lo = float(os.environ["GC_CLIP_MIN"])
+hi = float(os.environ["GC_CLIP_MAX"])
+lines = open(p).read().splitlines()
+hdr = lines[0].split('\t')
+gi = hdr.index('gc')
+out = [lines[0]]
+n_clipped = 0
+for l in lines[1:]:
+    c = l.split('\t')
+    g = float(c[gi])
+    if g < lo or g > hi:
+        # .10g, not the default 6-sig-fig :g, so a custom (non-default) bound
+        # with more than 6 significant digits round-trips exactly rather than
+        # being silently truncated. 0.3/0.7 print identically either way.
+        c[gi] = f'{min(max(g, lo), hi):.10g}'
+        n_clipped += 1
+    out.append('\t'.join(c))
+open(p + '.tmp', 'w').write('\n'.join(out) + '\n')
+os.replace(p + '.tmp', p)
+print(f'[reference] gc-clipped {n_clipped} of {len(lines) - 1} intervals')
+PYEOF
+    else
+        echo "[reference] No FASTA supplied; skipping gc clipping (no gc column to clip)"
+    fi
+
+    # ── PoN-member sex check ─────────────────────────────────────────────────
+    # Record cnvkit.py sex's call for every input coverage file, using the
+    # same --diploid-parx-genome setting as the reference build. This is a
+    # report only: it does not gate the build. Cross-check it against each
+    # member's LIMS sex (in the PoN membership documentation, not this app)
+    # before trusting the PoN's chrX/chrY handling -- a member whose inferred
+    # sex looks wrong is a signal to review, not necessarily to exclude.
+    # run_cnvkit only mounts $(pwd) into the container at /work, so the output
+    # must be written inside cnn_files/ (the mounted dir evaluated after `cd`)
+    # and then moved out -- writing "../pon_member_sex.tsv" would land outside
+    # the mount, inside the ephemeral container, and be lost on --rm.
+    echo "[sex-check] Running cnvkit.py sex on ${N_FILES} PoN member coverage files..."
+    ( cd cnn_files && run_cnvkit sex ./*.cnn "${PARX_ARGS[@]}" -o pon_member_sex.tsv )
+    mv cnn_files/pon_member_sex.tsv .
+    sed -i 's#\./##' pon_member_sex.tsv
+    echo "[sex-check] Wrote pon_member_sex.tsv"
+    cat pon_member_sex.tsv
 
     # ── Summary stats ─────────────────────────────────────────────────────────
     python3 - << 'PYEOF'
@@ -148,9 +226,11 @@ PYEOF
     # ── Upload outputs ────────────────────────────────────────────────────────
     cn_reference=$(dx upload "${REF_FILE}" --brief)
     reference_stats=$(dx upload reference_stats.tsv --brief)
+    pon_member_sex=$(dx upload pon_member_sex.tsv --brief)
 
     dx-jobutil-add-output cn_reference    "${cn_reference}"    --class=file
     dx-jobutil-add-output reference_stats "${reference_stats}" --class=file
+    dx-jobutil-add-output pon_member_sex  "${pon_member_sex}"  --class=file
 
     echo "=== PoN build complete: ${N_FILES} samples, ${N_INTERVALS} intervals ==="
 }

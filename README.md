@@ -29,6 +29,8 @@ median depth, sample count) for verification.
   normal (healthy volunteer) samples. When only tumour samples are available
   (tumour-only PoN), the reference still removes technical biases but will attenuate
   recurrent copy-number events present in many samples.
+- **Static PoN build:** build once, offline, from a fixed, curated member
+  list
 
 **PoN size guidance:**
 
@@ -48,9 +50,18 @@ median depth, sample count) for verification.
 | `fasta` | file | ➖ | bgzf-compressed reference FASTA (`.fasta.gz`) for GC/repeat annotation. Requires `fasta_fai` and `fasta_gzi`. |
 | `fasta_fai` | file | ➖ | samtools `.fai` index for the FASTA. Required when `fasta` is supplied. |
 | `fasta_gzi` | file | ➖ | bgzf block index (`.gzi`) for the FASTA. Required when `fasta` is supplied. |
+| `diploid_parx_genome` | string | ➖ | Genome build name (e.g. `grch38`) passed as `--diploid-parx-genome <value>` to `cnvkit.py reference` and the member sex check (`cnvkit.py sex`), so chrX PAR1/PAR2 is treated as autosomal instead of getting the male/female chrX offset. Default: `grch38`. Leave blank to disable. |
+| `gc_clip_min` | float | ➖ | Lower bound for `gc`-column clipping (default `0.3`). Only applied when `fasta` is supplied; see Notes. |
+| `gc_clip_max` | float | ➖ | Upper bound for `gc`-column clipping (default `0.7`). Only applied when `fasta` is supplied; see Notes. |
 
 All coverage files must have been generated with the **same BED file** and
 `target_avg_size` setting.
+
+Accepted values for `--diploid-parx-genome` (chr or not is handled regardless of which (grch vs hg) option is used - these are just aliases):
+- grch37
+- grch38
+- hg19
+- hg39
 
 ## What are the outputs?
 
@@ -58,6 +69,7 @@ All coverage files must have been generated with the **same BED file** and
 |---|---|---|
 | `cn_reference` | file | PoN reference (`.cnn`) — pass to `eggd_cgp-cnvkit-batch` |
 | `reference_stats` | file | Summary statistics (`.tsv`) — verify build quality |
+| `pon_member_sex` | file | `cnvkit.py sex` call (sample, sex, X_logratio, Y_logratio) for every input coverage file, computed with the same `diploid_parx_genome` setting as the reference build. Report only — cross-check against each member's LIMS sex before trusting the PoN's chrX/chrY handling; a mismatch is a signal to review the member, not an automatic exclusion. |
 
 **Verifying the reference:** the `reference_stats.tsv` should show:
 - `log2_median` close to 0.0 (PoN normalisation centres the log₂ scale)
@@ -107,3 +119,24 @@ No R is required for this step.
 - **Tumour PoN:** When built from tumour samples, recurrent CN events (amplifications
   or deletions present in many samples) are absorbed into the PoN median and attenuated
   in individual sample analyses. Replace with a normal-sample PoN when possible.
+- **PAR-aware chrX handling (`diploid_parx_genome`):** passed verbatim to CNVkit's
+  `--diploid-parx-genome`, which treats the named genome's chrX pseudoautosomal
+  region as autosomal rather than applying the male/female chrX offset there. Without
+  it, every PoN member whose only chrY bins are hard-masked by the reference FASTA
+  (as GIABv3's chrY PAR mask does on this panel) is inferred female by `reference`'s
+  own sex guess, regardless of true sex, and the PoN chrX level is biased.
+- **GC-column clipping (`gc_clip_min`/`gc_clip_max`):** `cnvkit.py fix` drops any bin
+  whose reference `gc` falls outside [0.3, 0.7] by default (`mask_bad_bins`), which on
+  the Twist CGP panel + GIABv3 removes ~7% of bins and can take short intragenic events
+  below the minimum usable probe count. Clipping the `gc` column to the given bounds
+  (applied only when `fasta` is supplied) keeps those bins — they are still
+  GC-corrected, just at the bound — without changing `log2`/`depth`/`spread` or any
+  other mask rule. Values already inside the bounds are untouched. `gc_clip_min` must
+  be strictly less than `gc_clip_max` (the job fails fast otherwise); omit `fasta` to
+  disable clipping entirely, since there is no `gc` column to clip.
+- **PoN member sex check:** `pon_member_sex.tsv` records `cnvkit.py sex`'s call for
+  every input file using the same `diploid_parx_genome` setting as the build. It does
+  not gate the build. In the validated Atlas configuration, 2 of 124 static-PoN members
+  have a sex call that disagrees with their LIMS letter (one tumour chrX gain, one
+  probable 47,XXY) and were retained after checking the effect on the PoN was
+  negligible — review flagged members the same way rather than excluding them by default.
