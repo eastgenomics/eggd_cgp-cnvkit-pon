@@ -80,9 +80,13 @@ main() {
     # PAR-aware chrX handling (--diploid-parx-genome). Applies to both the
     # reference build and the member sex check below, so PoN chrX/chrY
     # handling and the reported sexes use the same convention.
-    PARX_ARG=""
+    # Array, not a plain string: diploid_parx_genome is a free-form user input,
+    # so it must survive as a single argument even if it contained whitespace
+    # or glob metacharacters (unlike FASTA_ARG above, whose value is always the
+    # fixed literal "ref.fasta.gz").
+    PARX_ARGS=()
     if [ -n "${diploid_parx_genome:-}" ]; then
-        PARX_ARG="--diploid-parx-genome ${diploid_parx_genome}"
+        PARX_ARGS=(--diploid-parx-genome "${diploid_parx_genome}")
         echo "[reference] PAR-aware chrX handling enabled: --diploid-parx-genome ${diploid_parx_genome}"
     else
         echo "[reference] No diploid_parx_genome supplied; chrX PAR not treated as autosomal"
@@ -91,7 +95,7 @@ main() {
     echo "[reference] Building PoN from ${N_FILES} samples..."
     run_cnvkit reference cnn_files/*.cnn \
         --output "${pon_name:-cgp_cnvkit_reference}.cnn" \
-        ${FASTA_ARG} ${PARX_ARG}
+        ${FASTA_ARG} "${PARX_ARGS[@]}"
 
     export REF_FILE="${pon_name:-cgp_cnvkit_reference}.cnn"
     N_INTERVALS=$(wc -l < "${REF_FILE}")
@@ -146,7 +150,10 @@ for l in lines[1:]:
     c = l.split('\t')
     g = float(c[gi])
     if g < lo or g > hi:
-        c[gi] = f'{min(max(g, lo), hi):g}'
+        # .10g, not the default 6-sig-fig :g, so a custom (non-default) bound
+        # with more than 6 significant digits round-trips exactly rather than
+        # being silently truncated. 0.3/0.7 print identically either way.
+        c[gi] = f'{min(max(g, lo), hi):.10g}'
         n_clipped += 1
     out.append('\t'.join(c))
 open(p + '.tmp', 'w').write('\n'.join(out) + '\n')
@@ -169,7 +176,7 @@ PYEOF
     # and then moved out -- writing "../pon_member_sex.tsv" would land outside
     # the mount, inside the ephemeral container, and be lost on --rm.
     echo "[sex-check] Running cnvkit.py sex on ${N_FILES} PoN member coverage files..."
-    ( cd cnn_files && run_cnvkit sex ./*.cnn ${PARX_ARG} -o pon_member_sex.tsv )
+    ( cd cnn_files && run_cnvkit sex ./*.cnn "${PARX_ARGS[@]}" -o pon_member_sex.tsv )
     mv cnn_files/pon_member_sex.tsv .
     sed -i 's#\./##' pon_member_sex.tsv
     echo "[sex-check] Wrote pon_member_sex.tsv"

@@ -70,7 +70,7 @@
       "label": "Lower bound for gc column clipping",
       "default": 0.3,
       "optional": true,
-      "help": "Only applied when fasta is supplied. Reference intervals with gc below this value have their gc column clipped to this value (not dropped), so `fix`'s GC-bias masking (which excludes bins with gc outside [0.3, 0.7] by default) keeps them while still GC-correcting them at the bound. Values are otherwise unchanged (log2/depth/spread untouched). Set equal to gc_clip_max, or omit fasta, to disable."
+      "help": "Only applied when fasta is supplied. Reference intervals with gc below this value have their gc column clipped to this value (not dropped), so `fix`'s GC-bias masking (which excludes bins with gc outside [0.3, 0.7] by default) keeps them while still GC-correcting them at the bound. Values are otherwise unchanged (log2/depth/spread untouched). Must be strictly less than gc_clip_max. Omit fasta to disable clipping entirely (there is no gc column to clip)."
     },
     {
       "name": "gc_clip_max",

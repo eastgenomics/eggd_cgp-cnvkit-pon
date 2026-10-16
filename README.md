@@ -130,8 +130,9 @@ No R is required for this step.
   below the minimum usable probe count. Clipping the `gc` column to the given bounds
   (applied only when `fasta` is supplied) keeps those bins — they are still
   GC-corrected, just at the bound — without changing `log2`/`depth`/`spread` or any
-  other mask rule. Values already inside the bounds are untouched. Set
-  `gc_clip_min == gc_clip_max`, or omit `fasta`, to disable.
+  other mask rule. Values already inside the bounds are untouched. `gc_clip_min` must
+  be strictly less than `gc_clip_max` (the job fails fast otherwise); omit `fasta` to
+  disable clipping entirely, since there is no `gc` column to clip.
 - **PoN member sex check:** `pon_member_sex.tsv` records `cnvkit.py sex`'s call for
   every input file using the same `diploid_parx_genome` setting as the build. It does
   not gate the build. In the validated Atlas configuration, 2 of 124 static-PoN members
