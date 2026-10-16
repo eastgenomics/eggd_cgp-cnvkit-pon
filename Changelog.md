@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.2.0] - unreleased
+
+Adds the features required to build the Atlas CGP static PoN (DI-4089; subtasks DI-4090,
+DI-4091, DI-4092). Does not change behaviour when the three new inputs are left at their
+defaults/absent in the way existing callers rely on `coverage_files`/`pon_name`/`fasta*`,
+except that `diploid_parx_genome` now defaults to `grch38` (was previously not passed at
+all) — pass an empty string to reproduce the pre-2.2.0 `reference` call exactly.
+
+### Added
+- `diploid_parx_genome` optional input (default `grch38`): passed as
+  `--diploid-parx-genome <value>` to both `cnvkit.py reference` and the new member sex
+  check, so chrX PAR1/PAR2 is treated as autosomal (DI-4090).
+- `gc_clip_min` / `gc_clip_max` optional inputs (defaults `0.3`/`0.7`): when `fasta` is
+  supplied, the reference's `gc` column is clipped to these bounds after the build
+  (values unchanged otherwise), so `fix`'s default GC-bias masking keeps bins at the
+  panel's GC extremes instead of dropping them (DI-4091). Fails early if
+  `gc_clip_min >= gc_clip_max`.
+- `pon_member_sex` output (`.tsv`): `cnvkit.py sex` call for every input coverage file,
+  using the same `diploid_parx_genome` setting as the reference build. Report only —
+  does not gate the build (DI-4092).
+
 ## [2.1.0] - 2026-07-20
 
 ### Added

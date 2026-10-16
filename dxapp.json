@@ -3,9 +3,9 @@
   "title": "eggd_cgp-cnvkit-pon",
   "summary": "Builds a CNVkit panel-of-normals (PoN) reference from per-sample coverage files produced by eggd_cgp-cnvkit-coverage. Output reference.cnn is the input to eggd_cgp-cnvkit-batch.",
   "dxapi": "1.0.0",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "properties": {
-    "githubRelease": "2.1.1"
+    "githubRelease": "2.2.0"
   },
   "inputSpec": [
     {
@@ -55,6 +55,30 @@
       ],
       "optional": true,
       "help": "bgzf block index (.gzi) for the bgzf-compressed FASTA. Required when fasta is supplied."
+    },
+    {
+      "name": "diploid_parx_genome",
+      "class": "string",
+      "label": "PAR-aware genome build for --diploid-parx-genome",
+      "default": "grch38",
+      "optional": true,
+      "help": "Passed to `cnvkit.py reference` and `cnvkit.py sex` as `--diploid-parx-genome <value>`, which treats the named genome build's chrX pseudoautosomal region (PAR1/PAR2) as autosomal instead of applying the male/female chrX offset there. Example: grch38. Leave blank to disable (CNVkit's pre-PARX chrX handling)."
+    },
+    {
+      "name": "gc_clip_min",
+      "class": "float",
+      "label": "Lower bound for gc column clipping",
+      "default": 0.3,
+      "optional": true,
+      "help": "Only applied when fasta is supplied. Reference intervals with gc below this value have their gc column clipped to this value (not dropped), so `fix`'s GC-bias masking (which excludes bins with gc outside [0.3, 0.7] by default) keeps them while still GC-correcting them at the bound. Values are otherwise unchanged (log2/depth/spread untouched). Set equal to gc_clip_max, or omit fasta, to disable."
+    },
+    {
+      "name": "gc_clip_max",
+      "class": "float",
+      "label": "Upper bound for gc column clipping",
+      "default": 0.7,
+      "optional": true,
+      "help": "Only applied when fasta is supplied. Reference intervals with gc above this value have their gc column clipped to this value (not dropped). See gc_clip_min."
     }
   ],
   "outputSpec": [
@@ -75,6 +99,15 @@
         "*.tsv"
       ],
       "help": "TSV of summary metrics: n_intervals, log2_mean, log2_median, log2_stdev, depth_median, n_samples. Use to verify the PoN was built correctly."
+    },
+    {
+      "name": "pon_member_sex",
+      "class": "file",
+      "label": "PoN member sex check (.tsv)",
+      "patterns": [
+        "*.tsv"
+      ],
+      "help": "cnvkit.py sex output (sample, sex, X_logratio, Y_logratio) for every input coverage file, computed with the same --diploid-parx-genome setting as the reference build. Cross-check against each member's LIMS sex to flag members whose inferred sex looks wrong before trusting the PoN's chrX/chrY handling; this does not gate the build."
     }
   ],
   "runSpec": {
