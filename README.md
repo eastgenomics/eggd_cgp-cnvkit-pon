@@ -29,13 +29,8 @@ median depth, sample count) for verification.
   normal (healthy volunteer) samples. When only tumour samples are available
   (tumour-only PoN), the reference still removes technical biases but will attenuate
   recurrent copy-number events present in many samples.
-- **Static PoN build (Atlas CGP):** build once, offline, from a fixed, curated member
-  list (excludes controls, non-FFPE material and low-depth sequencings; one sequencing
-  per specimen) rather than per sequencing run. Use `fasta`/`fasta_fai`/`fasta_gzi`,
-  `diploid_parx_genome=grch38` and the default `gc_clip_min`/`gc_clip_max` to reproduce
-  the validated configuration (`cnv-backbone-purple-atlas/analysis/pon_comparison/FINAL_RESULTS.md`
-  s1.3-1.4). Check `pon_member_sex` against each member's LIMS sex before trusting the
-  build, and register the resulting `cn_reference` as a controlled file.
+- **Static PoN build:** build once, offline, from a fixed, curated member
+  list
 
 **PoN size guidance:**
 
@@ -61,6 +56,12 @@ median depth, sample count) for verification.
 
 All coverage files must have been generated with the **same BED file** and
 `target_avg_size` setting.
+
+Accepted values for `--diploid-parx-genome` (chr or not is handled regardless of which (grch vs hg) option is used - these are just aliases):
+- grch37
+- grch38
+- hg19
+- hg39
 
 ## What are the outputs?
 
