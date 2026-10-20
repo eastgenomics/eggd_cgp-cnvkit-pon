@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.2.0] - unreleased
+## [2.2.0] - 2026-10-19
 
 Adds the features required to build the Atlas CGP static PoN (DI-4089; subtasks DI-4090,
 DI-4091, DI-4092). Does not change behaviour when the three new inputs are left at their
